@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fairway — Live PGA Tracker</title>
+<style>
+  :root{
+    --green:#0b6b3a; --green-d:#074d29; --green-l:#12854a;
+    --bg:#f4f6f4; --card:#ffffff; --ink:#16241c; --muted:#6a7b70;
+    --line:#e4e9e5; --red:#c62828; --gold:#b8860b;
+    --shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(11,107,58,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0e1512; --card:#16211b; --ink:#e8efea; --muted:#8ba394;
+      --line:#243029; --green:#1e9e5a; --green-d:#0b6b3a; --shadow:0 1px 3px rgba(0,0,0,.4); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  header{background:linear-gradient(135deg,var(--green-d),var(--green));color:#fff;padding:18px 16px 0}
+  .wrap{max-width:960px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:.3px}
+  .brand .ball{width:22px;height:22px;border-radius:50%;background:#fff;
+    box-shadow:inset -3px -3px 0 rgba(0,0,0,.08);position:relative}
+  .tag{opacity:.85;font-size:12.5px;margin:4px 0 14px 32px}
+  nav{display:flex;gap:2px}
+  nav button{flex:1;background:transparent;border:0;color:#dff3e8;font-size:14px;font-weight:600;
+    padding:12px 8px;cursor:pointer;border-bottom:3px solid transparent;transition:.15s}
+  nav button.active{color:#fff;border-color:#fff}
+  nav button:hover{color:#fff}
+  main{max-width:960px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .evt{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .evt h2{margin:0 0 4px;font-size:19px}
+  .evt .meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    padding:3px 10px;border-radius:999px;background:rgba(11,107,58,.1);color:var(--green)}
+  .pill.live{background:rgba(198,40,40,.12);color:var(--red)}
+  .pill.live .dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead th{text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);
+    padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:700}
+  tbody td{padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:rgba(11,107,58,.035)}
+  .pos{font-weight:700;color:var(--muted);width:44px}
+  .name{font-weight:600}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .topar{font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+  .under{color:var(--red)} .over{color:var(--ink)} .even{color:var(--muted)}
+  .thru{color:var(--muted);font-variant-numeric:tabular-nums}
+  .amateur{font-size:10px;color:var(--gold);font-weight:800;margin-left:5px}
+  .r{color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;width:34px}
+  .foot{display:flex;justify-content:space-between;align-items:center;color:var(--muted);
+    font-size:12px;padding:10px 16px}
+  .foot button{background:var(--green);color:#fff;border:0;border-radius:8px;padding:7px 14px;
+    font-weight:600;font-size:12.5px;cursor:pointer}
+  .foot button:active{transform:translateY(1px)}
+  .state{padding:48px 20px;text-align:center;color:var(--muted)}
+  .spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--green);
+    border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hide{display:none}
+  .points{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--green)}
+  .rk-move{font-size:11px;font-weight:700}
+  .mv-up{color:var(--green)} .mv-dn{color:var(--red)}
+  @media (max-width:620px){
+    .col-r{display:none}
+    thead th, tbody td{padding:10px 7px}
+    .tag{margin-left:0}
+  }
+  /* auth bar + watchlist */
+  .authbar{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .authbar button{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);
+    border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .authbar button:hover{background:rgba(255,255,255,.28)}
+  .authbar .who{font-size:12px;opacity:.92;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .star{cursor:pointer;font-size:16px;color:var(--muted);user-select:none;display:inline-block;
+    width:24px;text-align:center;line-height:1}
+  .star.on{color:var(--gold)}
+  td.starcell{width:30px;padding-right:0}
+  th.starcell{width:30px}
+  .mp-empty{padding:44px 22px;text-align:center;color:var(--muted);line-height:1.6}
+  .mp-empty button{background:var(--green);color:#fff;border:0;border-radius:8px;
+    padding:8px 16px;font-weight:600;cursor:pointer;margin-top:14px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand"><span class="ball"></span> Fairway
+      <span class="authbar" id="authbar"></span>
+    </div>
+    <div class="tag">Live PGA Tour leaderboard · FedEx Cup standings · World rankings</div>
+    <nav>
+      <button data-tab="lb" class="active">Leaderboard</button>
+      <button data-tab="fx">FedEx Cup</button>
+      <button data-tab="rk">Rankings</button>
+      <button data-tab="mp">★ My Players</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- LEADERBOARD -->
+  <section id="tab-lb" class="card">
+    <div id="lb-evt" class="evt"></div>
+    <div id="lb-body">
+      <div class="state"><div class="spinner"></div>Loading leaderboard…</div>
+    </div>
+    <div class="foot">
+      <span id="lb-updated">—</span>
+      <button onclick="loadLeaderboard()">↻ Refresh</button>
+    </div>
+  </section>
+
+  <!-- FEDEX -->
+  <section id="tab-fx" class="card hide">
+    <div class="evt"><h2>FedEx Cup Standings</h2>
+      <div class="meta">Season-long points race for the FedEx Cup Playoffs</div></div>
+    <div id="fx-body"><div class="state"><div class="spinner"></div>Loading standings…</div></div>
+    <div class="foot"><span id="fx-updated">—</span>
+      <button onclick="loadFedex()">↻ Refresh</button></div>
+  </section>
+
+  <!-- RANKINGS -->
+  <section id="tab-rk" class="card hide">
+    <div class="evt"><h2>Official World Golf Ranking</h2>
+      <div class="meta">Top players by world ranking</div></div>
+    <div id="rk-body"><div class="state"><div class="spinner"></div>Loading rankings…</div></div>
+    <div class="foot"><span id="rk-updated">—</span>
+      <button onclick="loadRankings()">↻ Refresh</button></div>
+  </section>
+
+  <!-- MY PLAYERS (Supabase) -->
+  <section id="tab-mp" class="card hide">
+    <div class="evt"><h2>★ My Players</h2>
+      <div class="meta" id="mp-meta">Your starred players, synced to your account via Supabase</div></div>
+    <div id="mp-body"><div class="mp-empty">Loading…</div></div>
+  </section>
+</main>
+
+<script>
+const API = "https://site.api.espn.com/apis/site/v2/sports/golf";
+
+/* ================= SUPABASE CONFIG =================
+   Paste your two values below (Supabase dashboard → Project Settings → API).
+   Both are SAFE to keep here: the anon key is a PUBLIC key, and Row Level
+   Security (see supabase/migrations/*.sql) is what actually protects the data. */
+const SB_URL = "https://mfmcvozfdtrqwbnvaedw.supabase.co";  // your project URL
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mbWN2b3pmZHRycXdibnZhZWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNzEzMjIsImV4cCI6MjA5ODc0NzMyMn0.af8_SDjeMEFwGQisn4lsJEcCiJ2n5w6f4uP9b0d42m0";  // anon public key
+/* ================================================== */
+
+const sbReady = /^https:\/\/.+\.supabase\.co/.test(SB_URL) && SB_KEY.length > 20;
+const sb = (sbReady && window.supabase) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+let user = null;               // signed-in user, or null
+const favs = new Map();        // playerId -> playerName
+let lastField = [];            // this week's competitors, for cross-referencing scores
+
+/* ----- auth ----- */
+async function initAuth(){
+  renderAuthbar();
+  if(!sb) return;
+  // Register the listener FIRST. It fires INITIAL_SESSION on load and SIGNED_IN right
+  // after an OAuth redirect — so the UI updates itself without needing a manual reload.
+  // (Registering it after getSession() caused us to miss the post-redirect event.)
+  sb.auth.onAuthStateChange(async (_e, session)=>{
+    user = session?.user || null;
+    await loadFavs(); renderAuthbar();
+    if(!$('tab-lb').classList.contains('hide')) loadLeaderboard();
+    if(!$('tab-mp').classList.contains('hide')) renderMyPlayers();
+  });
+  // Fallback for environments that don't emit INITIAL_SESSION.
+  const { data } = await sb.auth.getSession();
+  if(data.session && !user){ user = data.session.user; await loadFavs(); renderAuthbar(); }
+}
+function renderAuthbar(){
+  const el = $('authbar');
+  if(!sb){ el.innerHTML = `<span class="who">Supabase not configured</span>`; return; }
+  el.innerHTML = user
+    ? `<span class="who">${user.email||'signed in'}</span><button onclick="signOut()">Sign out</button>`
+    : `<button onclick="signInGoogle()">Sign in with Google</button><button onclick="signIn()" title="Get an email magic link instead">Email</button>`;
+}
+async function signIn(){
+  const email = prompt("Enter your email — Supabase will send you a magic sign-in link:");
+  if(!email) return;
+  const { error } = await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo: cleanUrl() } });
+  alert(error ? ("Sign-in error: "+error.message)
+              : "Check your email for a magic link, then return to this page — you'll be signed in.");
+}
+// Always redirect back to a CLEAN url (no leftover #access_token / ?error params),
+// otherwise stale params get folded into the next request and Google 400s.
+const cleanUrl = () => window.location.origin + window.location.pathname;
+async function signInGoogle(){
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: cleanUrl() }
+  });
+  if(error) alert("Google sign-in error: "+error.message);  // on success the browser redirects to Google
+}
+async function signOut(){ await sb.auth.signOut(); }
+
+/* ----- watchlist (Supabase table `watchlist`) ----- */
+async function loadFavs(){
+  favs.clear();
+  if(!sb || !user) return;
+  const { data, error } = await sb.from('watchlist').select('player_id,player_name');
+  if(!error && data) data.forEach(r=>favs.set(r.player_id, r.player_name));
+}
+async function toggleFav(pid, name){
+  if(!sb){ alert("Add your Supabase URL and anon key near the top of golf.html first."); return; }
+  if(!user){ signIn(); return; }
+  pid = String(pid);
+  if(favs.has(pid)){
+    favs.delete(pid);
+    await sb.from('watchlist').delete().eq('user_id', user.id).eq('player_id', pid);
+  }else{
+    favs.set(pid, name);
+    await sb.from('watchlist').insert({ user_id:user.id, player_id:pid, player_name:name });
+  }
+  document.querySelectorAll(`[data-star="${pid}"]`).forEach(s=>{
+    const on = favs.has(pid); s.classList.toggle('on', on); s.textContent = on ? '★' : '☆';
+  });
+  if(!$('tab-mp').classList.contains('hide')) renderMyPlayers();
+}
+function starHTML(pid, name){
+  pid = String(pid);
+  const on = favs.has(pid);
+  const safe = String(name||'').replace(/\\/g,'').replace(/'/g,"\\'");
+  return `<span class="star ${on?'on':''}" data-star="${pid}" onclick="toggleFav('${pid}','${safe}')">${on?'★':'☆'}</span>`;
+}
+function renderMyPlayers(){
+  const body=$('mp-body'), meta=$('mp-meta');
+  if(!sb){ body.innerHTML=`<div class="mp-empty">Supabase isn't configured yet.<br>Add your project URL and anon key near the top of <code>golf.html</code>.</div>`; return; }
+  if(!user){ body.innerHTML=`<div class="mp-empty">Sign in to build a watchlist that syncs across your devices.<button onclick="signIn()">Sign in</button></div>`; meta.textContent='Your starred players, synced to your account via Supabase'; return; }
+  if(favs.size===0){ body.innerHTML=`<div class="mp-empty">No players yet.<br>Tap the ☆ next to any player on the Leaderboard to add them here.</div>`; meta.textContent='Your starred players, synced to your account via Supabase'; return; }
+  const rows=[...favs.entries()].map(([pid,name])=>{
+    const c = lastField.find(x=>String((x.athlete||{}).id||x.id)===String(pid));
+    const score = c ? (statOf(c,'scoreToPar') ?? c.score?.displayValue) : null;
+    const thru = c ? playerThru(c.status) : '';
+    return `<tr>
+      <td class="starcell">${starHTML(pid,name)}</td>
+      <td class="name">${name}</td>
+      <td class="topar ${c?toParClass(score):'even'}">${c?fmtPar(score):'—'}</td>
+      <td class="thru num">${thru}</td></tr>`;
+  }).join('');
+  meta.textContent = `${favs.size} player${favs.size>1?'s':''} · live score shows when they're in this week's field`;
+  body.innerHTML=`<table><thead><tr><th class="starcell"></th><th>Player</th>
+    <th class="num">Total</th><th class="num">Thru</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const now = () => "Updated " + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+
+function toParClass(v){
+  if(v==null) return 'even';
+  const s = String(v).trim();
+  if(s==='E'||s==='0'||s==='--'||s==='') return 'even';
+  return s.startsWith('-') ? 'under' : 'over';
+}
+function fmtPar(v){
+  if(v==null||v==='') return 'E';
+  const s=String(v).trim();
+  return (s==='0'||s==='--') ? 'E' : s;
+}
+async function getJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+function errState(el, msg){
+  el.innerHTML = `<div class="state">⚠️ ${msg}<br><small>ESPN's data feed may be briefly unavailable — try refreshing.</small></div>`;
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    ['lb','fx','rk','mp'].forEach(t=>$('tab-'+t).classList.toggle('hide', t!==b.dataset.tab));
+    if(b.dataset.tab==='fx' && !fxLoaded) loadFedex();
+    if(b.dataset.tab==='rk' && !rkLoaded) loadRankings();
+    if(b.dataset.tab==='mp') renderMyPlayers();
+  };
+});
+
+/* ---------- leaderboard ---------- */
+function playerThru(st){
+  const state = st?.type?.state;
+  if(state==='post' || st?.type?.completed) return 'F';
+  if(state==='pre')  return st?.type?.shortDetail || st?.teeTime && new Date(st.teeTime).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) || '—';
+  const t = st?.thru;
+  return (t==null||t===0) ? '—' : (t>=18 ? 'F' : String(t));
+}
+function statOf(c, name){
+  const s = (c.statistics||[]).find(x=>x.name===name);
+  return s ? s.displayValue : null;
+}
+
+async function loadLeaderboard(){
+  const body = $('lb-body');
+  try{
+    const d = await getJSON(`${API}/leaderboard`);
+    const ev = d.events && d.events[0];
+    if(!ev){ $('lb-evt').innerHTML='<h2>No tournament scheduled</h2>'; body.innerHTML='<div class="state">There is no PGA Tour event on the board right now.</div>'; $('lb-updated').textContent=now(); return; }
+    const comp = ev.competitions[0];
+    const course = (ev.courses&&ev.courses[0]) || {};
+    const state = ev.status?.type?.state;
+    const live = state==='in';
+    $('lb-evt').innerHTML = `
+      <h2>${ev.name}</h2>
+      <div class="meta">
+        <span class="pill ${live?'live':''}">${live?'<span class="dot"></span>':''}${ev.status?.type?.description||''}</span>
+        ${course.name?`<span>⛳ ${course.name}${course.shotsToPar?` · Par ${course.shotsToPar}`:''}</span>`:''}
+        ${ev.displayPurse?`<span>💰 ${ev.displayPurse}</span>`:''}
+      </div>`;
+
+    const players = (comp.competitors||[]).slice().sort((a,b)=>(a.sortOrder??999)-(b.sortOrder??999));
+    lastField = players;
+    let rows = players.map(c=>{
+      const a = c.athlete||{};
+      const total = statOf(c,'scoreToPar') ?? c.score?.displayValue;
+      const thru = playerThru(c.status);
+      const pts = statOf(c,'cupPoints');
+      const ls = (c.linescores||[]);
+      const rnd = n => { const l=ls.find(x=>x.period===n); return l? Math.round(l.value): ''; };
+      return `<tr>
+        <td class="starcell">${starHTML(a.id||c.id, a.displayName)}</td>
+        <td class="pos">${c.status?.position?.displayValue||''}</td>
+        <td class="name">${a.displayName||''}${c.amateur?'<span class="amateur">(a)</span>':''}</td>
+        <td class="topar ${toParClass(total)}">${fmtPar(total)}</td>
+        <td class="thru num">${thru}</td>
+        <td class="r col-r">${rnd(1)}</td>
+        <td class="r col-r">${rnd(2)}</td>
+        <td class="r col-r">${rnd(3)}</td>
+        <td class="r col-r">${rnd(4)}</td>
+        <td class="points">${pts&&pts!=='0'?pts:''}</td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = `<table>
+      <thead><tr>
+        <th class="starcell"></th><th>Pos</th><th>Player</th><th class="num">Total</th><th class="num">Thru</th>
+        <th class="col-r" style="text-align:center">R1</th><th class="col-r" style="text-align:center">R2</th>
+        <th class="col-r" style="text-align:center">R3</th><th class="col-r" style="text-align:center">R4</th>
+        <th class="num">FedEx</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+    $('lb-updated').textContent = now();
+  }catch(e){ errState(body, "Couldn't load the leaderboard."); $('lb-updated').textContent=now(); }
+}
+
+/* ---------- FedEx Cup ---------- */
+const SEASON = new Date().getFullYear();
+const FEDEX_URL = `https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/seasons/${SEASON}/types/2/standings/0`;
+const TOP_N = 100;               // how many of the points race to display
+let fxLoaded=false;
+
+async function loadFedex(){
+  const body=$('fx-body'); fxLoaded=true;
+  body.innerHTML = `<div class="state"><div class="spinner"></div>Loading standings…</div>`;
+  try{
+    const d = await getJSON(FEDEX_URL);
+    // Entries carry cupPoints but no name and no rank — sort by points, then resolve names.
+    let rows = (d.standings||[]).map(e=>{
+      const stats = (e.records && e.records[0] && e.records[0].stats) || [];
+      const cp = stats.find(s=>s.name==='cupPoints');
+      return { points: cp?cp.value:0, disp: cp?cp.displayValue:'0',
+               ref: (e.athlete && e.athlete.$ref || '').replace(/^http:/,'https:') };
+    }).filter(r=>r.points>0).sort((a,b)=>b.points-a.points).slice(0, TOP_N);
+
+    if(!rows.length){ errState(body,"FedEx Cup standings aren't available yet this season."); return; }
+
+    // Resolve player names in parallel (one lightweight fetch each).
+    const names = await Promise.all(rows.map(r =>
+      r.ref ? getJSON(r.ref).then(a=>a.displayName||a.fullName||'—').catch(()=>'—') : Promise.resolve('—')
+    ));
+
+    body.innerHTML = `<table><thead><tr>
+        <th>Rank</th><th>Player</th><th class="num">FedEx Points</th>
+      </tr></thead><tbody>${
+      rows.map((r,i)=>`<tr>
+        <td class="pos">${i+1}</td>
+        <td class="name">${names[i]}</td>
+        <td class="points">${r.disp}</td></tr>`).join('')
+    }</tbody></table>`;
+    $('fx-updated').textContent=now();
+  }catch(e){ errState(body,"Couldn't load FedEx Cup standings."); }
+}
+
+/* ---------- Rankings (OWGR) ---------- */
+const RANK_URL = "https://site.web.api.espn.com/apis/site/v2/sports/golf/all/rankings?region=us&lang=en&polls=1";
+let rkLoaded=false;
+
+function trendMarkup(r){
+  const prev = r.previous, cur = r.current;
+  if(prev==null || prev===0 || prev===cur) return '';
+  const diff = prev - cur;                       // positive = moved up
+  return diff>0 ? `<span class="rk-move mv-up">▲${diff}</span>`
+                : `<span class="rk-move mv-dn">▼${-diff}</span>`;
+}
+async function loadRankings(){
+  const body=$('rk-body'); rkLoaded=true;
+  try{
+    const d = await getJSON(RANK_URL);
+    const poll = (d.rankings||[]).find(p=>p.type==='WORLDRANK') || (d.rankings||[])[0];
+    const ranks = (poll && poll.ranks) || [];
+    if(!ranks.length){ errState(body,"World rankings aren't available right now."); return; }
+    body.innerHTML = `<table><thead><tr>
+        <th>Rank</th><th>Player</th><th class="num">Avg Pts</th>
+      </tr></thead><tbody>${
+      ranks.slice(0, 200).map(r=>{
+        const a = r.athlete||{};
+        const avg = (r.recordStats||[]).find(s=>s.name==='averagePoints');
+        return `<tr>
+          <td class="pos">${r.current} ${trendMarkup(r)}</td>
+          <td class="name">${a.displayName||'—'}</td>
+          <td class="num">${avg?avg.displayValue:''}</td></tr>`;
+      }).join('')
+    }</tbody></table>`;
+    $('rk-updated').textContent=now();
+  }catch(e){ errState(body,"Couldn't load world rankings."); }
+}
+
+/* ---------- boot + auto-refresh live scores ---------- */
+initAuth();
+loadLeaderboard();
+setInterval(()=>{ if(!$('tab-lb').classList.contains('hide')) loadLeaderboard(); }, 60000);
+</script>
+</body>
+</html>
