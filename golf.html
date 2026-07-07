@@ -181,7 +181,7 @@ function renderAuthbar(){
   const el = $('authbar');
   if(!sb){ el.innerHTML = `<span class="who">Supabase not configured</span>`; return; }
   el.innerHTML = user
-    ? `<span class="who">${user.email||'signed in'}</span><button onclick="signOut()">Sign out</button>`
+    ? `<span class="who">${esc(user.email||'signed in')}</span><button onclick="signOut()">Sign out</button>`
     : `<button onclick="signInGoogle()">Sign in with Google</button><button onclick="signIn()" title="Get an email magic link instead">Email</button>`;
 }
 async function signIn(){
@@ -219,7 +219,7 @@ async function toggleFav(pid, name){
     await sb.from('watchlist').delete().eq('user_id', user.id).eq('player_id', pid);
   }else{
     favs.set(pid, name);
-    await sb.from('watchlist').insert({ user_id:user.id, player_id:pid, player_name:name });
+    await sb.from('watchlist').insert({ user_id:user.id, player_id:pid.slice(0,20), player_name:String(name||'').slice(0,100) });
   }
   document.querySelectorAll(`[data-star="${pid}"]`).forEach(s=>{
     const on = favs.has(pid); s.classList.toggle('on', on); s.textContent = on ? '★' : '☆';
@@ -227,9 +227,10 @@ async function toggleFav(pid, name){
   if(!$('tab-mp').classList.contains('hide')) renderMyPlayers();
 }
 function starHTML(pid, name){
-  pid = String(pid);
+  pid = String(pid).replace(/[^\w-]/g,'');   // ESPN ids are numeric; strip anything that could break out of the attribute
   const on = favs.has(pid);
-  const safe = String(name||'').replace(/\\/g,'').replace(/'/g,"\\'");
+  // JS-escape for the string literal, then HTML-escape for the attribute — in that order.
+  const safe = esc(String(name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
   return `<span class="star ${on?'on':''}" data-star="${pid}" onclick="toggleFav('${pid}','${safe}')">${on?'★':'☆'}</span>`;
 }
 function renderMyPlayers(){
@@ -243,7 +244,7 @@ function renderMyPlayers(){
     const thru = c ? playerThru(c.status) : '';
     return `<tr>
       <td class="starcell">${starHTML(pid,name)}</td>
-      <td class="name">${name}</td>
+      <td class="name">${esc(name)}</td>
       <td class="topar ${c?toParClass(score):'even'}">${c?fmtPar(score):'—'}</td>
       <td class="thru num">${thru}</td></tr>`;
   }).join('');
@@ -254,6 +255,8 @@ function renderMyPlayers(){
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
+// HTML-escape anything we interpolate into innerHTML (ESPN data, emails, stored names).
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const now = () => "Updated " + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
 
 function toParClass(v){
@@ -312,11 +315,11 @@ async function loadLeaderboard(){
     const state = ev.status?.type?.state;
     const live = state==='in';
     $('lb-evt').innerHTML = `
-      <h2>${ev.name}</h2>
+      <h2>${esc(ev.name)}</h2>
       <div class="meta">
-        <span class="pill ${live?'live':''}">${live?'<span class="dot"></span>':''}${ev.status?.type?.description||''}</span>
-        ${course.name?`<span>⛳ ${course.name}${course.shotsToPar?` · Par ${course.shotsToPar}`:''}</span>`:''}
-        ${ev.displayPurse?`<span>💰 ${ev.displayPurse}</span>`:''}
+        <span class="pill ${live?'live':''}">${live?'<span class="dot"></span>':''}${esc(ev.status?.type?.description||'')}</span>
+        ${course.name?`<span>⛳ ${esc(course.name)}${course.shotsToPar?` · Par ${esc(course.shotsToPar)}`:''}</span>`:''}
+        ${ev.displayPurse?`<span>💰 ${esc(ev.displayPurse)}</span>`:''}
       </div>`;
 
     const players = (comp.competitors||[]).slice().sort((a,b)=>(a.sortOrder??999)-(b.sortOrder??999));
@@ -330,8 +333,8 @@ async function loadLeaderboard(){
       const rnd = n => { const l=ls.find(x=>x.period===n); return l? Math.round(l.value): ''; };
       return `<tr>
         <td class="starcell">${starHTML(a.id||c.id, a.displayName)}</td>
-        <td class="pos">${c.status?.position?.displayValue||''}</td>
-        <td class="name">${a.displayName||''}${c.amateur?'<span class="amateur">(a)</span>':''}</td>
+        <td class="pos">${esc(c.status?.position?.displayValue||'')}</td>
+        <td class="name">${esc(a.displayName||'')}${c.amateur?'<span class="amateur">(a)</span>':''}</td>
         <td class="topar ${toParClass(total)}">${fmtPar(total)}</td>
         <td class="thru num">${thru}</td>
         <td class="r col-r">${rnd(1)}</td>
@@ -384,7 +387,7 @@ async function loadFedex(){
       </tr></thead><tbody>${
       rows.map((r,i)=>`<tr>
         <td class="pos">${i+1}</td>
-        <td class="name">${names[i]}</td>
+        <td class="name">${esc(names[i])}</td>
         <td class="points">${r.disp}</td></tr>`).join('')
     }</tbody></table>`;
     $('fx-updated').textContent=now();
@@ -417,7 +420,7 @@ async function loadRankings(){
         const avg = (r.recordStats||[]).find(s=>s.name==='averagePoints');
         return `<tr>
           <td class="pos">${r.current} ${trendMarkup(r)}</td>
-          <td class="name">${a.displayName||'—'}</td>
+          <td class="name">${esc(a.displayName||'—')}</td>
           <td class="num">${avg?avg.displayValue:''}</td></tr>`;
       }).join('')
     }</tbody></table>`;
